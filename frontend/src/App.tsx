@@ -5,7 +5,8 @@ import OutcomeCard from './components/OutcomeCard';
 import WeightsPanel from './components/WeightsPanel';
 import StatsBar from './components/StatsBar';
 
-const API_BASE = 'http://localhost:3001';
+// 使用相对路径，Express 同时托管前后端，无需写死地址
+const API_BASE = '';
 
 // Fallback mock data so UI looks populated even without backend
 const MOCK_SIGNALS = [
@@ -108,7 +109,7 @@ function App() {
             <div className="flex items-center gap-3">
               <span className="px-3 py-1.5 rounded-full bg-gradient-to-r from-purple-600/20 to-indigo-600/20 border border-indigo-500/30 text-xs font-semibold text-indigo-300 flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                Solana
+                🔷 ETH + 🔵 Base
               </span>
               <span className="text-[10px] text-slate-600">
                 {loading ? 'Loading...' : 'Live'}
@@ -169,7 +170,7 @@ function App() {
         {/* Footer */}
         <footer className="mt-16 pb-8 text-center fade-in-up" style={{ animationDelay: '0.5s' }}>
           <p className="text-[10px] text-slate-600">
-            Crypto Alpha Radar v1.0 · Solana Network · Built for Researchers & Fund Managers
+            Crypto Alpha Radar v1.0 · ETH + Base Chain · Built for Researchers & Fund Managers
           </p>
         </footer>
       </div>
