@@ -62,8 +62,8 @@ app.get('/api/weights', (req, res) => {
 });
 
 // ── React SPA 回退路由 ───────────────────────────────────────────────────────
-// 所有非 /api 路由都返回 index.html，由 React Router 处理
-app.get('*', (req, res) => {
+// Express v5 不再支持 '*'，改用 '/{*splat}' 语法
+app.get('/{*splat}', (req, res) => {
     res.sendFile(path.join(FRONTEND_DIST, 'index.html'));
 });
 
