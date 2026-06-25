@@ -24,7 +24,7 @@ interface ScanToken {
     whaleThreshold?: number; // Min USD value to count as "whale" buy
 }
 
-const TOKENS_TO_SCAN: ScanToken[] = [
+export const TOKENS_TO_SCAN: ScanToken[] = [
     // ── Ethereum Mainnet ──────────────────────────────────
     { symbol: 'PEPE',   chain: 'ethereum', address: '0x6982508145454Ce325dDbE47a25d4ec3d2311933', whaleThreshold: 20_000 },
     { symbol: 'SHIB',   chain: 'ethereum', address: '0x95aD61b0a150d79219dCF64E1E6Cc01f0B64C4cE', whaleThreshold: 30_000 },
