@@ -4,6 +4,7 @@ dotenv.config();
 import cron from 'node-cron';
 import { runDailyScan } from './index';
 import { sendTestMessage } from './services/notifier';
+import { runWhaleScan } from './jobs/whaleJob';
 
 console.log('');
 console.log('╔══════════════════════════════════════════════════════╗');
@@ -36,6 +37,17 @@ cron.schedule('0 8 * * *', async () => {
 }, {
     timezone: 'UTC',
 });
+
+// ── Cron Job: Whale scan every 30 minutes ───────────────────────────────────────
+cron.schedule('*/30 * * * *', async () => {
+    console.log(`\n⏰ [${new Date().toISOString()}] Cron triggered — Starting whale scan...\n`);
+    try {
+        await runWhaleScan();
+        console.log(`\n✅ [${new Date().toISOString()}] Whale scan completed.\n`);
+    } catch (err: any) {
+        console.error(`\n❌ [${new Date().toISOString()}] Whale scan FAILED: ${err.message}\n`);
+    }
+}, { timezone: 'UTC' });
 
 console.log('');
 console.log('✅ Scheduler is running. Press Ctrl+C to stop.');

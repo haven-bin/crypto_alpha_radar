@@ -40,7 +40,20 @@ export function initDB() {
         )
     `);
 
-    // 3. weights_table: Dynamic multipliers for Opportunity Engine
+    // 3. whale_events: Tracks large movements
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS whale_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tx_hash TEXT UNIQUE NOT NULL,
+            token TEXT NOT NULL,
+            address TEXT NOT NULL,
+            amount REAL NOT NULL,
+            side TEXT NOT NULL, -- 'buy' or 'sell'
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
+    // 4. weights_table: Dynamic multipliers for Opportunity Engine
     db.exec(`
         CREATE TABLE IF NOT EXISTS weights_table (
             dimension TEXT PRIMARY KEY,
