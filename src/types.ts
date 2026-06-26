@@ -29,6 +29,16 @@ export interface TokenMetrics {
 
     // Price
     priceChange24h?: number; // 24h price change %
+
+    // Volume/Price Divergence
+    divergenceScore?:  number; // score delta from divergence (-20 ~ +15)
+    divergenceSignal?: string; // 'accumulation'|'fake_pump'|'distribution'|'trend_confirm'|'none'
+    divergenceLabel?:  string; // human-readable description
+
+    // Wash Trading
+    washPenalty?:    number;  // score penalty (0 ~ -20)
+    isWashTrading?:  boolean;
+    washConfidence?: number;  // 0-100
 }
 
 export interface AlphaScoreResult {
@@ -42,6 +52,8 @@ export interface AlphaScoreResult {
         whaleBuyingScore: number;   // Max 20
         smartMoneyScore: number;    // Max 20
         marketCapScore: number;     // Max 10
+        divergenceBonus: number;    // -20 ~ +15（量价背离）
+        washPenalty: number;        // -20 ~ 0（洗量惩罚）
     };
 }
 

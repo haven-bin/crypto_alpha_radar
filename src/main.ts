@@ -16,6 +16,7 @@ dotenv.config();
 import cron from 'node-cron';
 import db, { initDB } from './db';
 import { runDailyScan } from './index';
+import { runWhaleScan } from './jobs/whaleJob';
 import { sendTestMessage } from './services/notifier';
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN!;
@@ -211,12 +212,25 @@ cron.schedule('0 8 * * *', async () => {
     }
 }, { timezone: 'UTC' });
 
+// ── Cron: Whale scan every 30 minutes ────────────────────────────────────────
+cron.schedule('*/30 * * * *', async () => {
+    console.log(`\n⏰ [${new Date().toISOString()}] Cron triggered — Starting whale scan...`);
+    try {
+        await runWhaleScan();
+        console.log(`✅ [${new Date().toISOString()}] Whale scan completed.\n`);
+    } catch (err: any) {
+        console.error(`❌ [${new Date().toISOString()}] Whale scan FAILED: ${err.message}\n`);
+    }
+}, { timezone: 'UTC' });
+
 // ── Startup ───────────────────────────────────────────────────────────────────
 sendTestMessage().then(() => {
     console.log('✅ Startup notification sent to group.');
 }).catch(e => console.warn('⚠️  Could not send startup notification:', e.message));
 
-console.log('✅ Cron scheduler active — daily at 08:00 UTC (16:00 Beijing).');
+console.log('✅ Cron scheduler active:');
+console.log('   • Daily scan  — 08:00 UTC (16:00 Beijing)');
+console.log('   • Whale scan  — Every 30 minutes');
 console.log('   Commands: /scan  /top  /status  /help');
 console.log('   Press Ctrl+C to stop.\n');
 

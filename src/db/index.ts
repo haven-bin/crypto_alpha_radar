@@ -40,7 +40,7 @@ export function initDB() {
         )
     `);
 
-    // 3. whale_events: Tracks large movements
+    // 3. whale_events: Tracks large movements (with price context)
     db.exec(`
         CREATE TABLE IF NOT EXISTS whale_events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -48,12 +48,43 @@ export function initDB() {
             token TEXT NOT NULL,
             address TEXT NOT NULL,
             amount REAL NOT NULL,
-            side TEXT NOT NULL, -- 'buy' or 'sell'
+            side TEXT NOT NULL,          -- 'buy' or 'sell'
+            price_signal TEXT,           -- 'accumulation'|'caution'|'neutral'
+            price_change24h REAL,        -- 24h price change % at time of event
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
         )
     `);
 
-    // 4. weights_table: Dynamic multipliers for Opportunity Engine
+    // 4. cex_flows: 24h CEX net inflow/outflow per token
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS cex_flows (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            token TEXT NOT NULL,
+            period_start TEXT NOT NULL,  -- YYYY-MM-DD
+            inflow REAL NOT NULL DEFAULT 0,
+            outflow REAL NOT NULL DEFAULT 0,
+            net_flow REAL NOT NULL DEFAULT 0,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(token, period_start)
+        )
+    `);
+
+    // 5. liquidation_alerts: Hyperliquid near-liquidation events
+    db.exec(`
+        CREATE TABLE IF NOT EXISTS liquidation_alerts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            wallet_label TEXT NOT NULL,
+            wallet_address TEXT NOT NULL,
+            coin TEXT NOT NULL,
+            side TEXT NOT NULL,          -- 'long' or 'short'
+            size_usd REAL NOT NULL,
+            entry_price REAL NOT NULL,
+            liq_price REAL NOT NULL,
+            distance_pct REAL NOT NULL,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    `);
+
     db.exec(`
         CREATE TABLE IF NOT EXISTS weights_table (
             dimension TEXT PRIMARY KEY,

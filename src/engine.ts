@@ -51,13 +51,22 @@ export class OpportunityEngine {
     public evaluateToken(metrics: TokenMetrics): AlphaScoreResult {
         const weights = this.getWeights();
 
-        const addressScore   = this.calculateAddressGrowthScore(metrics.yesterdayAddresses, metrics.todayAddresses, weights['address_growth'] || 30);
-        const volumeScore    = this.calculateVolumeGrowthScore(metrics.yesterdayVolume, metrics.todayVolume, weights['volume_growth'] || 20);
-        const whaleScore     = this.calculateWhaleScore(metrics.whaleBuyVolume, weights['whale_buying'] || 20);
+        const addressScore    = this.calculateAddressGrowthScore(metrics.yesterdayAddresses, metrics.todayAddresses, weights['address_growth'] || 30);
+        const volumeScore     = this.calculateVolumeGrowthScore(metrics.yesterdayVolume, metrics.todayVolume, weights['volume_growth'] || 20);
+        const whaleScore      = this.calculateWhaleScore(metrics.whaleBuyVolume, weights['whale_buying'] || 20);
         const smartMoneyScore = this.calculateSmartMoneyScore(metrics.smartMoneyBuyCount, weights['smart_money'] || 20);
-        const mcScore        = this.calculateMarketCapScore(metrics.marketCap, weights['market_cap'] || 10);
+        const mcScore         = this.calculateMarketCapScore(metrics.marketCap, weights['market_cap'] || 10);
 
-        const totalScore = addressScore + volumeScore + whaleScore + smartMoneyScore + mcScore;
+        // ── New signals ────────────────────────────────────────────────
+        // 量价背离得分（+15 ~ -20）
+        const divergenceBonus = metrics.divergenceScore ?? 0;
+        // 洗量惩罚（0 ~ -20）
+        const washPenalty     = metrics.washPenalty ?? 0;
+
+        const totalScore = Math.max(0, Math.min(100,
+            addressScore + volumeScore + whaleScore + smartMoneyScore + mcScore
+            + divergenceBonus + washPenalty
+        ));
 
         return {
             token: metrics.symbol,
@@ -69,7 +78,9 @@ export class OpportunityEngine {
                 volumeGrowthScore:  parseFloat(volumeScore.toFixed(2)),
                 whaleBuyingScore:   parseFloat(whaleScore.toFixed(2)),
                 smartMoneyScore:    parseFloat(smartMoneyScore.toFixed(2)),
-                marketCapScore:     parseFloat(mcScore.toFixed(2))
+                marketCapScore:     parseFloat(mcScore.toFixed(2)),
+                divergenceBonus:    parseFloat(divergenceBonus.toFixed(2)),
+                washPenalty:        parseFloat(washPenalty.toFixed(2)),
             }
         };
     }

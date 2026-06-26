@@ -8,42 +8,18 @@ import { fetchTokenPairs, getBestPair, estimateGrowthMetrics } from './data/dexs
 import { fetchTokenTransfers, detectWhaleTransfers, checkSmartMoneyBuys } from './data/etherscan';
 import { getSmartWalletAddresses } from './data/smartmoney';
 import { sendDailyReport } from './services/notifier';
+import { TOKENS_TO_SCAN, ScanToken } from './tokens';
+import { detectDivergence } from './signals/divergence';
+import { detectWashTrading } from './signals/washDetector';
+export { TOKENS_TO_SCAN } from './tokens'; // re-export for backward compat
 
 initDB();
 
 const engine = new OpportunityEngine();
 
 // -------------------------------------------------------
-// Multi-chain token registry.
-// ETH Mainnet + Base Chain meme tokens.
+// Token registry is now in src/tokens.ts
 // -------------------------------------------------------
-interface ScanToken {
-    symbol: string;
-    address: string;
-    chain: Chain;
-    whaleThreshold?: number; // Min USD value to count as "whale" buy
-}
-
-export const TOKENS_TO_SCAN: ScanToken[] = [
-    // ── Ethereum Mainnet ──────────────────────────────────
-    { symbol: 'PEPE',   chain: 'ethereum', address: '0x6982508145454Ce325dDbE47a25d4ec3d2311933', whaleThreshold: 20_000 },
-    { symbol: 'SHIB',   chain: 'ethereum', address: '0x95aD61b0a150d79219dCF64E1E6Cc01f0B64C4cE', whaleThreshold: 30_000 },
-    { symbol: 'FLOKI',  chain: 'ethereum', address: '0xcf0C122c6b73ff809C693DB761e7BaeBe62b6a2E', whaleThreshold: 10_000 },
-    { symbol: 'TURBO',  chain: 'ethereum', address: '0xA35923162C49cF95e6BF26623385eb431ad920D3', whaleThreshold: 5_000  },
-    { symbol: 'MOG',    chain: 'ethereum', address: '0xaaeE1A9723aaDB7afA2810263653A34bA2C21C7a', whaleThreshold: 10_000 },
-    { symbol: 'MEME',   chain: 'ethereum', address: '0xb131f4A55907B10d1F0A50d8ab8FA09EC342cd74', whaleThreshold: 10_000 },
-    { symbol: 'CULT',   chain: 'ethereum', address: '0xf0f9D895aCa5c8678f706FB8216fa22957685A13', whaleThreshold: 5_000  },
-    { symbol: 'WOJAK',  chain: 'ethereum', address: '0x5026F006B85729a8b14553FAE6af249aD16c9aaB', whaleThreshold: 5_000  },
-    { symbol: 'ELON',   chain: 'ethereum', address: '0x761D38e5ddf6ccf6Cf7c55759d5210750B5D60F3', whaleThreshold: 5_000  },
-    { symbol: 'KISHU',  chain: 'ethereum', address: '0xA2b4C0Af19cC16a6CfAcCe81F192B024d625817D', whaleThreshold: 5_000  },
-
-    // ── Base Chain ────────────────────────────────────────
-    { symbol: 'BRETT',  chain: 'base', address: '0x532f27101965dd16442E59d40670FaF5eBB142E4', whaleThreshold: 10_000 },
-    { symbol: 'DEGEN',  chain: 'base', address: '0x4ed4E862860beD51a9570b96d89aF5E1B0Efefed', whaleThreshold: 5_000  },
-    { symbol: 'TOSHI',  chain: 'base', address: '0xD769d56f479E9E72a77bB1523e866A33098Feec5', whaleThreshold: 3_000  },
-    { symbol: 'AERO',   chain: 'base', address: '0x940181a94A35A4569E4529A3CDfB74e38FD98631', whaleThreshold: 20_000 },
-    { symbol: 'PEPE.b', chain: 'base', address: '0x52b492a33E447Cdb854c7FC19F1e57E8BfA1777D', whaleThreshold: 5_000  },
-];
 
 async function scanToken(token: ScanToken): Promise<TokenMetrics | null> {
     const chainLabel = token.chain === 'base' ? '🔵Base' : '🔷ETH';
@@ -60,19 +36,27 @@ async function scanToken(token: ScanToken): Promise<TokenMetrics | null> {
 
     const growth = estimateGrowthMetrics(bestPair);
 
-    // 2. Whale detection via Etherscan V2 (chain-aware, same API key)
+    // 2. Whale detection via Etherscan V2 (chain-aware)
     let whaleBuyVolumeUsd  = 0;
     let whaleSellVolumeUsd = 0;
+    let transfers: any[]   = [];
     if (growth.priceUsd > 0) {
-        const transfers = await fetchTokenTransfers(token.address, 1000, token.chain);
+        transfers = await fetchTokenTransfers(token.address, 1000, token.chain);
         const whaleData = detectWhaleTransfers(transfers, growth.priceUsd, token.whaleThreshold ?? 10_000);
         whaleBuyVolumeUsd  = whaleData.totalWhaleBuyVolumeUsd;
-        // Estimate sell volume: large transfers OUT of wallets (incoming to DEX)
         whaleSellVolumeUsd = whaleData.totalWhaleSellVolumeUsd ?? 0;
     }
 
-    // 3. Smart money tracking (chain-aware, check 3 wallets to save rate limits)
-    const smartWallets = getSmartWalletAddresses().slice(0, 3);
+    // 2b. Volume/Price Divergence signal
+    const divergence = detectDivergence(bestPair);
+
+    // 2c. Wash trading detection (uses same transfers from Etherscan)
+    const washResult = transfers.length > 0
+        ? detectWashTrading(transfers, 2)
+        : null;
+
+    // 3. Smart money tracking (only qualified wallets ≥60% win rate)
+    const smartWallets = getSmartWalletAddresses(true).slice(0, 3);
     const { count: smartMoneyCount } = await checkSmartMoneyBuys(
         token.address, smartWallets, 24, token.chain
     );
@@ -80,6 +64,13 @@ async function scanToken(token: ScanToken): Promise<TokenMetrics | null> {
     // 4. Liquidity & price info from DexScreener pair
     const liquidityUsd     = bestPair.liquidity?.usd ?? 0;
     const priceChange24h   = bestPair.priceChange?.h24 ?? 0;
+
+    if (divergence.signal !== 'none') {
+        console.log(`     📊 量价背离: ${divergence.emoji} ${divergence.label}`);
+    }
+    if (washResult?.isWashTrading) {
+        console.log(`     ⚠️  疑似洗量: 可疑比例=${(washResult.washRatio*100).toFixed(0)}%，置信度=${washResult.confidence}%`);
+    }
 
     return {
         symbol:             token.symbol,
@@ -95,8 +86,13 @@ async function scanToken(token: ScanToken): Promise<TokenMetrics | null> {
         marketCap:          growth.marketCap,
         liquidityUsd,
         priceChange24h,
-        // We don't have historical liquidity to compute change yet — risk engine uses sell volume + price
         liquidityChangePct: priceChange24h < -20 ? priceChange24h * 0.5 : undefined,
+        divergenceScore:    divergence.score,
+        divergenceSignal:   divergence.signal,
+        divergenceLabel:    divergence.label,
+        washPenalty:        washResult?.penalty ?? 0,
+        isWashTrading:      washResult?.isWashTrading ?? false,
+        washConfidence:     washResult?.confidence ?? 0,
     };
 }
 
